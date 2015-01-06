@@ -18,8 +18,24 @@ def normalize(signal):
     return [x / max_value for x in signal]
 
 
-def find_k_formants(signal, k):
-    pass
+def find_k_formants(signal, k, delta):
+    denied = [False for _ in range(len(signal))]
+
+    for _ in range(k):
+        new_formant = find_formant(signal, denied)
+
+        for i in range(new_formant - delta, new_formant + delta):
+            denied[i] = True
+
+        yield new_formant
+
+
+def find_formant(signal, denied):
+    return reduce(
+        lambda cur_max, i:
+        cur_max if denied[i] or cur_max[0] > signal[i]
+        else (signal[i], i), range(len(signal))
+    )[1]
 
 count = 0
 
