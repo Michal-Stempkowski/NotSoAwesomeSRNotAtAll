@@ -18,6 +18,13 @@ def normalize(signal):
     return [x / max_value for x in signal]
 
 
+def generate_characteristics_of_sample(sample, number_of_formants):
+    conv = convolution(sample)
+    delta = calculate_delta(len(conv))
+    print('delta:', delta)
+    return sorted(find_k_formants(conv, number_of_formants, delta))
+
+
 def find_k_formants(signal, k, delta):
     denied = [False for _ in range(len(signal))]
 
@@ -34,8 +41,12 @@ def find_formant(signal, denied):
     return reduce(
         lambda cur_max, i:
         cur_max if denied[i] or cur_max[0] > signal[i]
-        else (signal[i], i), range(len(signal))
+        else (signal[i], i), range(len(signal)), (-1, None)
     )[1]
+
+
+def calculate_delta(rate):
+    return rate // 100
 
 count = 0
 
@@ -44,7 +55,7 @@ def test(signal):
     global count
 
     result = convolution(signal)
-    print('result: ', result, '\n')
+    print('characteristics: ', generate_characteristics_of_sample(signal, 7), '\n')
     plot.plot(signal)
     plot.show()
     plot.plot(result)
