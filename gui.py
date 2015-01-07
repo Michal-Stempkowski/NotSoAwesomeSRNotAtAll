@@ -79,7 +79,7 @@ class AThread(QtCore.QThread):
 
     def print_speech(self, speech_arr):
         global keyboard
-        print speech_arr
+        print(speech_arr)
         keyboard.push_button("t")
 
         #self.clicked.emit()
