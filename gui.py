@@ -1,5 +1,3 @@
-__author__ = 'Wojtek'
-
 import sys
 from functools import partial
 import threading
@@ -8,16 +6,16 @@ from Queue import Queue, Full
 import matplotlib.pyplot as plot
 import pyaudio
 import math
-from numpy.fft import rfft
-from PyQt4.QtCore import QObject, pyqtSignal, pyqtSlot
+from time import sleep
 from PyQt4 import QtGui, QtCore
+import correlation
 
 CHUNK_SIZE = 1024
-MIN_VOLUME = 300
+MIN_VOLUME = 500
 count = 0
 BUF_MAX_SIZE = CHUNK_SIZE * 15
-keyboard = None
-
+fonem_provider = None
+schemas = None
 
 characters = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p',
               'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l',
@@ -27,19 +25,11 @@ characters = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p',
 buttons = {}
 
 
-class custom_object(QObject):
-    said = pyqtSignal(str)
-
-    def __init__(self):
-        QObject.__init__(self)
-
-
-@pyqtSlot(str)
-def on_said(str):
-    print("\n\n\nsaid")
-
-
 class AThread(QtCore.QThread):
+    def __init__(self):
+        QtCore.QThread.__init__(self)
+        self.signal = QtCore.SIGNAL("signal")
+
     def run(self):
         stopped = threading.Event()
         q = Queue(maxsize=int(round(BUF_MAX_SIZE / CHUNK_SIZE)))
@@ -74,21 +64,16 @@ class AThread(QtCore.QThread):
                 if previous:
                     self.print_speech(speech_arr)
                     speech_arr = []
+                    sleep(2)
                 previous = False
-
 
     def print_speech(self, speech_arr):
         global keyboard
         print(speech_arr)
-        keyboard.push_button("t")
-
-        #self.clicked.emit()
-        #test(speech_arr)
-
+        self.emit(self.signal, correlation.recognize_character(speech_arr, schemas))
         #plot.plot(speech_arr)
         #plot.ylabel('Literka')
         #plot.show()
-
 
     def listen(self, stopped, q):
         stream = pyaudio.PyAudio().open(
@@ -106,7 +91,6 @@ class AThread(QtCore.QThread):
                 q.put(array('h', stream.read(CHUNK_SIZE)))
             except Full:
                 pass  # discard
-
 
 
 class Keyboard(QtGui.QWidget):
@@ -161,26 +145,10 @@ class Keyboard(QtGui.QWidget):
     def get_edit(self):
         return self.editBox.text()
 
-
-def pad_with_zeroes(signal, padding):
-    return signal + [0 for _ in range(padding - len(signal))]
-
-
-def convolution(signal):
-    return [math.fabs(x) for x in rfft(signal)]
-
-
-def test(signal):
-    global count
-
-    result = convolution(signal)
-    print('result: ', result, '\n')
-    plot.plot(signal)
-    plot.show()
-    plot.plot(result)
-    plot.show()
-    plot.title(count)
-    count += 1
+    def start_recording_threads(self):
+        self.thread = AThread()
+        self.connect(self.thread, self.thread.signal, self.push_button)
+        self.thread.start()
 
 
 def button_mapping(string):
@@ -192,15 +160,23 @@ def button_mapping(string):
 
 
 def gui_main():
-    global keyboard
+    global schemas
+    global fonem_provider
+
     app = QtGui.QApplication(sys.argv)
     keyboard = Keyboard()
     keyboard.show()
 
-    keyboard.push_button("a")
-    keyboard.push_button("h")
-    thread = AThread()
-    thread.start()
+    # keyboard.push_button("a")
+    #keyboard.push_button("h")
+
+    fonem_dir = 'fonems'
+    num_of_formants = 4
+
+    fonem_provider = correlation.get_fonem_provider(fonem_dir)
+    schemas = correlation.load_characteristics(fonem_provider, num_of_formants)
+
+    keyboard.start_recording_threads()
 
     sys.exit(app.exec_())
 
