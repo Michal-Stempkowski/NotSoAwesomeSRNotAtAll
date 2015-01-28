@@ -70,7 +70,7 @@ class AThread(QtCore.QThread):
     def print_speech(self, speech_arr):
         global keyboard
         print(speech_arr)
-        self.emit(self.signal, correlation.recognize_character(speech_arr, schemas))
+        self.emit(self.signal, correlation.recognize_character_lpc(None, speech_arr, schemas))
         #plot.plot(speech_arr)
         #plot.ylabel('Literka')
         #plot.show()

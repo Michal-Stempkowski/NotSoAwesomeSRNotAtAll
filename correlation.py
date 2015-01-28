@@ -1,6 +1,9 @@
 from functools import reduce
 import os
+from audiolazy.lazy_filters import z
 from audiolazy.lazy_lpc import lpc
+from audiolazy.lazy_math import dB20
+from audiolazy.lazy_synth import line
 from numpy.fft import rfft
 
 import matplotlib.pyplot as plot
@@ -15,11 +18,19 @@ class Point(object):
         self.z = z
 
     def distance(self, other):
-        return abs(self.x - other.x) + abs(self.y - other.y) + abs(self.z - other.z)
+        return math.sqrt((self.x - other.x)**2 + (self.y - other.y)**2 + (self.z - other.z)**2)
 
     @staticmethod
     def from_list(ls):
-        return Point(ls[0], ls[1], ls[2])
+        # ls = list(reversed(ls))
+        index = 0
+        return Point(ls[0 + index], ls[1+ index], ls[2+ index]) if len(ls) > 2+ index else Point(ls[0+ index], ls[1+ index], ls[1+ index])
+
+
+    def __str__(self):
+        return '{0:.2f}x{1:.2f}x{2:.2f}'.format(self.x, self.y, self.z)
+
+    __repr__ = __str__
 
 
 class Signal(object):
@@ -81,9 +92,20 @@ class Signal(object):
         previous_state = None
 
         size = 1000
-        probes = list(curve(range(size)))
+        # curve.plot().show()
+        # input()
+        probes = extract_lpc_numerals(curve, size)
+        # plot_shit(probes)
+        # input()
+        # probes = list(curve(range(size)))
 
-        plot_shit(probes)
+        # tab = range (1000)
+        # filtr =curve
+        # result = curve(tab)
+        # plot.plot(list(result))
+        # plot.show()
+
+
         for i in range(size - 1):
             x = probes[i]
             y = probes[i + 1]
@@ -98,7 +120,9 @@ class Signal(object):
 
     @staticmethod
     def generate_characteristics_of_sample_with_lpc(sample, number_of_formants):
-        lpc_curve = lpc(Signal.convolution(sample), num_of_formants+2)
+        lpc_curve = lpc(
+            Signal.convolution(sample),
+            number_of_formants)
         return Signal.find_peaks_on_curve(lpc_curve, number_of_formants)
 
 
@@ -145,9 +169,9 @@ def recognize_character_lpc(take, schemas, num_of_formants):
     best = None
     for (name, other) in schemas:
         if not best:
-            best = (other, Point.from_list(take).distance(point), name)
+            best = (other, Point.from_list(other).distance(point), name)
         else:
-            curr = (other, Point.from_list(take).distance(point), name)
+            curr = (other, Point.from_list(other).distance(point), name)
             best = best if best[1] <= curr[1] else curr
 
     return best
@@ -158,87 +182,62 @@ def plot_shit(sh):
     plot.ylabel('Literka')
     plot.show()
 
+def extract_lpc_numerals(lpc_result, samples):
+    min_freq=0.
+    max_freq=3.141592653589793;
+    freq_scale="linear"
+    mag_scale="dB"
+    fscale = freq_scale.lower()
+    mscale = mag_scale.lower()
+    mscale = "dB"
+
+    Hz = 3.141592653589793 / 12.
+
+    freqs = list(line(samples, min_freq, max_freq, finish=True))
+    freqs_label = list(line(samples, min_freq / Hz, max_freq / Hz, finish=True))
+    data = lpc_result.freq_response(freqs)
+    mag = { "dB": dB20 }[mscale]
+
+    # print("extract numerals")
+    return (mag(data))
+
 if __name__ == '__main__':
     fonem_dir = 'fonems'
-    num_of_formants = 3
+    num_of_formants = 4
 
     fonem_provider = get_fonem_provider(fonem_dir)
     schemas = load_characteristics(fonem_provider, num_of_formants)
+
 
     takes = get_fonem_provider('fonems2')
 
     tested = 0
     well_classified = 0
 
-    t1 = list(get_fonem_provider('fonems'))
-    t2 = list(get_fonem_provider('fonems2'))
+    t1 = list(get_fonem_provider('fonems'))#[:2]
+    t2 = list(get_fonem_provider('fonems2'))#[:2]
 
     test_schemas = [(fonem_name, Signal.generate_characteristics_of_sample_with_lpc(fonem_sample, num_of_formants))
-            for (fonem_name, fonem_sample) in t1]
+            for (fonem_name, fonem_sample) in t1][:1]
 
     test_schemas2 = [(fonem_name, Signal.generate_characteristics_of_sample_with_lpc(fonem_sample, num_of_formants))
             for (fonem_name, fonem_sample) in t2]
 
+    i = 0
+    for (name, take) in takes:
+        recognized = recognize_character_lpc(take, schemas, num_of_formants)
 
+        result = recognized[2] == name
+        tested += 1
+        well_classified += 1 if result else 0
+        print(name,
+              # Point.from_list(schemas[i][1]),
+              '-->',
+              recognized[2],
+              'SUCCESS!!' if result else '')
 
-    lpced = lpc(t1[0][1], num_of_formants)
-    lpced.plot().show()
+        i += 1
 
-    print(Signal.generate_characteristics_of_sample_with_lpc(t1[0][1], num_of_formants))
-
-    input()
-
-
-    # print(test_schemas[0][1])
-    # print(test_schemas[0][1])
-    # print(test_schemas2[0][1])
-
-    # for i in range(len(test_schemas)):
-    #     print(test_schemas[i][0])
-    #     print(test_schemas[i][1])
-    #     print(test_schemas2[i][1])
-        # list(test_schemas[0][1](range(1000)))
-        # lpc(t1[0][1], num_of_formants+2).plot().show()
-        # input()
-
-    # lpc(t1[0][1], num_of_formants + 2).plot().show()
-    # lpc(t2[0][1], num_of_formants + 2).plot().show()
-    # lpc(t1[1][1], num_of_formants + 2).plot().show()
-    # lpc(t2[1][1], num_of_formants + 2).plot().show()
-    # input()
-
-
-    # for a in range(len(test_schemas)):
-    #     print(test_schemas[a][0])
-    #     for i in range(len(test_schemas)):
-    #         test_schemas[a][1].plot().show()
-    #         test_schemas[i][1].plot().show()
-    #         print(test_schemas[a][1].diff() - test_schemas2[i][1].diff())
-    #         break
-    #
-    #     print()
-        # input()
-
-    # for (name, take) in takes:
-    #     recognized = recognize_character_lpc(take, schemas, num_of_formants+2)
-    #
-    #     result = recognized == name
-    #     tested += 1
-    #     well_classified += 1 if result else 0
-    #     print(name, '-->', recognized, 'SUCCESS!!' if result else '')
-
-    # for (name, take) in takes:
-    #     recognized = recognize_character(take, schemas)
-    #
-    #     result = recognized == name
-    #     tested += 1
-    #     well_classified += 1 if result else 0
-    #     print(name, '-->', recognized, 'SUCCESS!!' if result else '')
-    #
-    #     plot.plot(take)
-    #     plot.show()
-    #
-    #     lpc(take, order=4).plot().show()
 
     print('Recognition: ', well_classified, '/', tested)
 
